@@ -1,9 +1,10 @@
 // ==UserScript==
-// @name         Leia-me Auto Gemini Cheat (Automático)
+// @name         Leia Paraná Bypass(Automático)
 // @namespace    http://tampermonkey.net/
-// @version      4.6
-// @description  Responde perguntas e avança automaticamente no Leia-me/Odilo com Gemini AI 😎
+// @version      4.7
+// @description  Responde perguntas e avança automaticamente no LeiaParaná
 // @author       MZ
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=leiaparana-le.odilo.us/
 // @match        *://*odilo*/*
 // @grant        none
 // @run-at       document-idle
@@ -15,6 +16,7 @@
     const API_KEY = 'AIzaSyDzHvHcoBgfeNJf0iwM2AfjQM3mQ9sW-W8'; // sua API Key aqui
     let autoMode = false;
     let processando = false;
+    let velocidadeRapida = false; // controla se está em modo rápido (3,5s) ou humanizado (40-60s)
 
     if (window.top !== window.self) return;
 
@@ -57,25 +59,32 @@
             font-size: 14px;
             border-radius: 8px;
             cursor: pointer;
+            user-select: none;
         }
         .gemini-box .auto-on { background: #10b981 !important; }
         .gemini-box .auto-off { background: #ef4444 !important; }
+        .gemini-box .velocidade-on { background: #facc15 !important; } /* amarelo para velocidade rápida */
+        .gemini-box .velocidade-off { background: #6b7280 !important; } /* cinza para humanizada */
     `;
     document.head.appendChild(style);
 
+    // Criação da interface
     const ui = document.createElement("div");
     ui.className = "gemini-box";
     ui.innerHTML = `
         <h1>📘 Leia-me Cheat</h1>
         <h2>🦇 by @mzzvxm</h2>
         <button id="toggleAuto" class="auto-off">⚙️ Auto: OFF</button>
+        <button id="toggleVelocidade" class="velocidade-off">⚡ Velocidade: Humanizada</button>
         <div id="status" style="font-size:13px; color:#ccc; text-align:center; margin-top:6px;">Aguardando</div>
     `;
     document.body.appendChild(ui);
 
     const btnToggle = document.getElementById("toggleAuto");
+    const btnVelocidade = document.getElementById("toggleVelocidade");
     const statusDiv = document.getElementById("status");
 
+    // Toggle do modo automático
     btnToggle.onclick = function () {
         autoMode = !autoMode;
         this.textContent = `⚙️ Auto: ${autoMode ? 'ON' : 'OFF'}`;
@@ -87,6 +96,15 @@
         } else {
             statusDiv.textContent = "Modo automático desativado";
         }
+    };
+
+    // Toggle da velocidade de avanço das páginas
+    btnVelocidade.onclick = function () {
+        velocidadeRapida = !velocidadeRapida;
+        this.textContent = `⚡ Velocidade: ${velocidadeRapida ? 'Rápida' : 'Humanizada'}`;
+        this.classList.toggle("velocidade-on", velocidadeRapida);
+        this.classList.toggle("velocidade-off", !velocidadeRapida);
+        statusDiv.textContent = `Velocidade de avanço: ${velocidadeRapida ? 'Rápida (3,5s)' : 'Humanizada (40-60s)'}`;
     };
 
     function temPerguntaAtiva() {
@@ -287,56 +305,50 @@ ${alternativas.map((alt, i) => `${String.fromCharCode(65 + i)}) ${alt}`).join("\
                     await avancarPergunta();
                     await new Promise(r => setTimeout(r, 3000));
                 } else {
-                    statusDiv.textContent = "Letra reconhecida, mas não clicável";
-                    console.warn("❌ Letra reconhecida mas não clicável:", letra);
+                    statusDiv.textContent = "Não foi possível marcar a resposta.";
                 }
             } else {
-                statusDiv.textContent = "Resposta Gemini não obtida";
-                console.warn("⚠️ Não foi possível identificar a resposta da IA");
+                statusDiv.textContent = "Gemini não respondeu a tempo.";
             }
-        } finally {
-            processando = false;
+        } catch (err) {
+            console.error("Erro ao processar pergunta:", err);
+            statusDiv.textContent = "Erro no processamento";
         }
+
+        processando = false;
     }
 
+    // Função principal do modo automático
     async function iniciarLeituraAutomatica() {
-        statusDiv.textContent = "Iniciando modo automático...";
         while (autoMode) {
-            if (temPerguntaAtiva()) {
-                await processarPergunta();
-            } else {
-                await avancarPaginaLivro();
-                const tempoLeitura = Math.floor(Math.random() * (60000 - 40000 + 1)) + 40000;
-                await new Promise(r => setTimeout(r, tempoLeitura));
+            try {
+                if (temPerguntaAtiva()) {
+                    await processarPergunta();
+                } else {
+                    statusDiv.textContent = "Nenhuma pergunta ativa, avançando página...";
+                    await avancarPaginaLivro();
+                }
+            } catch (e) {
+                console.warn("Erro no loop automático:", e);
             }
-            await new Promise(r => setTimeout(r, 1000));
+
+            // Delay entre páginas (modo rápido ou humanizado)
+            const delayMs = velocidadeRapida
+                ? 3500
+                : (40 + Math.random() * 20) * 1000; // 40-60s randomizado
+            statusDiv.textContent += ` Próxima ação em ${(delayMs / 1000).toFixed(1)}s`;
+            await new Promise(r => setTimeout(r, delayMs));
         }
         statusDiv.textContent = "Modo automático desativado";
     }
 
-    // Nova função adicionada:
+    // Função para clicar no botão fechar quiz se aparecer
     function esperarEClicarFechar() {
-        const tentarCliqueFechar = () => {
-            const btnFechar = document.querySelector('md-toolbar button.md-icon-button[ng-click="close()"]');
-            if (btnFechar && btnFechar.offsetParent !== null && !btnFechar.disabled) {
-                console.log("✅ Botão Fechar (md-toolbar) encontrado. Clicando...");
-                btnFechar.click();
-                return true;
-            }
-            return false;
-        };
-
-        if (tentarCliqueFechar()) return;
-
-        const obsFechar = new MutationObserver(() => {
-            if (tentarCliqueFechar()) {
-                obsFechar.disconnect();
-            }
-        });
-
-        obsFechar.observe(document.body, { childList: true, subtree: true });
-
-        setTimeout(() => obsFechar.disconnect(), 5000); // segurança
+        const btnFechar = document.querySelector('md-icon[aria-label="close dialog"]');
+        if (btnFechar) {
+            btnFechar.click();
+            console.log("🛑 Fechou diálogo");
+        }
     }
 
 })();
