@@ -4,7 +4,7 @@
 // @version      4.7
 // @description  Responde perguntas e avança automaticamente no LeiaParaná
 // @author       MZ
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=leiaparana-le.odilo.us/
+// @icon         https://themes.odilo.io/SEED_Parana_E1079/images/logo.png
 // @match        *://*odilo*/*
 // @grant        none
 // @run-at       document-idle
