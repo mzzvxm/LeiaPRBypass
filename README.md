@@ -1,60 +1,61 @@
-LeiaPRBypass
-LeiaPRBypass é um script automatizado que simula a leitura de livros e responde automaticamente às perguntas no site Leia Paraná, facilitando o acúmulo de horas de leitura sem intervenção manual.
+# LeiaPRBypass
 
-🚀 Funcionalidades
-Navegação automática pelas páginas dos livros.
+**LeiaPRBypass** é um script automatizado que simula a leitura de livros e responde automaticamente às perguntas no site Leia Paraná, facilitando o acúmulo de horas de leitura sem necessidade de intervenção manual.
 
-Respostas automáticas às perguntas ao final de cada capítulo.
+## 🚀 Funcionalidades
 
-Alternância entre dois modos de velocidade:
+* Navega automaticamente pelas páginas dos livros
+* Responde automaticamente às perguntas ao final de cada capítulo
+* Botão para alternar entre dois modos de velocidade:
 
-Humanizada: simula um tempo de leitura realista.
+  * **Humanizada**: simula leitura realista com intervalos variáveis
+  * **Rápida**: aproximadamente 3,5 segundos por página
+* Compatível com gerenciadores de userscripts como Violentmonkey
+* Pode ser executado via bookmarklet
 
-Rápida: aproximadamente 3,5 segundos por página.
+## ⚙️ Instalação
 
-Compatível com gerenciadores de userscripts como Violentmonkey.
+### 1. Como Userscript (Violentmonkey)
 
-Disponível também como bookmarklet para uso rápido.
+1. Instale o [Violentmonkey](https://violentmonkey.github.io/get-it/) no seu navegador
 
-⚙️ Instalação
-1. Como Userscript (Violentmonkey)
-Instale o Violentmonkey no seu navegador.
+2. Acesse o seguinte link para instalar o script:
 
-Acesse o seguinte link para instalar o script:
+   ```
+   https://raw.githubusercontent.com/mzzvxm/LeiaPRBypass/main/script.js
+   ```
 
-bash
-Copiar
-Editar
-https://raw.githubusercontent.com/mzzvxm/LeiaPRBypass/main/script.js
-O Violentmonkey detectará o script e solicitará a instalação.
+3. O Violentmonkey detectará o script e solicitará a instalação
 
-Confirme a instalação e o script estará ativo nas páginas do Leia Paraná.
+4. Confirme e o script estará ativo automaticamente nas páginas do Leia Paraná
 
-2. Como Bookmarklet
-Se preferir não usar um gerenciador de userscripts, você pode utilizar o script como um bookmarklet:
+### 2. Como Bookmarklet
 
-Crie um novo favorito no seu navegador.
+1. Crie um novo favorito no seu navegador
 
-No campo de URL do favorito, cole o seguinte código:
+2. No campo de URL do favorito, cole o seguinte código:
 
-javascript
-Copiar
-Editar
-javascript:(function(){fetch('https://raw.githubusercontent.com/mzzvxm/LeiaPRBypass/main/script.js').then(r=>r.text()).then(eval);})();
-Acesse o site do Leia Paraná.
+   ```javascript
+   javascript:(function(){fetch('https://raw.githubusercontent.com/mzzvxm/LeiaPRBypass/main/script.js').then(r=>r.text()).then(eval);})();
+   ```
 
-Clique no bookmarklet para ativar o script na página atual.
+3. Acesse o site do Leia Paraná
 
-🔧 Alternância de Velocidade
-Após a ativação do script, um botão será exibido na interface do Leia Paraná, permitindo alternar entre os modos de velocidade:
+4. Clique no bookmarklet para ativar o script
 
-Humanizada: simula um tempo de leitura realista, com intervalos variados entre as páginas.
+## 🔧 Alternância de Velocidade
 
-Rápida: avança as páginas a cada 3,5 segundos, acelerando o processo de leitura.
+Após a ativação, um botão será exibido na interface do Leia Paraná permitindo alternar entre os dois modos de velocidade:
 
-Clique no botão para alternar entre os modos conforme sua preferência.
+* **Humanizada**: leitura com intervalos variáveis (modo padrão)
+* **Rápida**: leitura acelerada, cerca de 3.5 segundos por página
 
-📄 Licença
-Este projeto está licenciado sob a MIT License.
+Clique no botão para trocar entre os modos conforme sua preferência.
 
-Nota: Este script é fornecido para fins educacionais. O uso indevido pode violar os termos de serviço do site Leia Paraná.
+## 📄 Licença
+
+Este projeto está licenciado sob a [MIT License](LICENSE).
+
+---
+
+*Nota: Este script é fornecido para fins educacionais. O uso indevido pode violar os termos de serviço do site Leia Paraná.*
