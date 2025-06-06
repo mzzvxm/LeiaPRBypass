@@ -1,10 +1,9 @@
 // ==UserScript==
-// @name         Leia Paraná Bypass(Automático)
+// @name         LeiaParaná Bypass
 // @namespace    http://tampermonkey.net/
-// @version      4.7
-// @description  Responde perguntas e avança automaticamente no LeiaParaná
-// @author       MZ
-// @icon         https://themes.odilo.io/SEED_Parana_E1079/images/logo.png
+// @version      3.0.1
+// @description  Bot de leitura e quiz automatizado no LeiaParaná
+// @author       mzzvxm
 // @match        *://*odilo*/*
 // @grant        none
 // @run-at       document-idle
@@ -13,14 +12,28 @@
 (function () {
     'use strict';
 
-    const API_KEY = 'AIzaSyDzHvHcoBgfeNJf0iwM2AfjQM3mQ9sW-W8'; // sua API Key aqui
-    let autoMode = false;
-    let processando = false;
-    let velocidadeRapida = false; // controla se está em modo rápido (3,5s) ou humanizado (40-60s)
-
     if (window.top !== window.self) return;
 
-    // Estilo visual
+    const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    const GEMINI_KEY = 'AIzaSyDzHvHcoBgfeNJf0iwM2AfjQM3mQ9sW-W8';
+
+    let isRunning = false;
+    let fastMode = false;
+    let working = false;
+
+    const wait = (ms) => new Promise(res => setTimeout(res, ms));
+
+    const ui = document.createElement('div');
+    ui.className = 'gemini-box';
+    ui.innerHTML = `
+        <h1>📘 Leia-me Cheat</h1>
+        <h2>☄️ by @mzzvxm</h2>
+        <button id="toggle-run" class="auto-off">⚙️ Auto: OFF</button>
+        <button id="toggle-speed" class="velocidade-off">⚡ Velocidade: Humanizada</button>
+        <div id="status-msg" style="font-size:13px; color:#ccc; text-align:center; margin-top:6px;">Aguardando</div>
+    `;
+    document.body.appendChild(ui);
+
     const style = document.createElement("style");
     style.textContent = `
         .gemini-box {
@@ -39,13 +52,7 @@
             gap: 8px;
             width: 240px;
         }
-        .gemini-box h1 {
-            font-size: 16px;
-            margin: 0;
-            font-weight: 600;
-            text-align: center;
-        }
-        .gemini-box h2 {
+        .gemini-box h1, .gemini-box h2 {
             font-size: 16px;
             margin: 0;
             font-weight: 600;
@@ -63,292 +70,129 @@
         }
         .gemini-box .auto-on { background: #10b981 !important; }
         .gemini-box .auto-off { background: #ef4444 !important; }
-        .gemini-box .velocidade-on { background: #facc15 !important; } /* amarelo para velocidade rápida */
-        .gemini-box .velocidade-off { background: #6b7280 !important; } /* cinza para humanizada */
+        .gemini-box .velocidade-on { background: #facc15 !important; }
+        .gemini-box .velocidade-off { background: #6b7280 !important; }
     `;
     document.head.appendChild(style);
 
-    // Criação da interface
-    const ui = document.createElement("div");
-    ui.className = "gemini-box";
-    ui.innerHTML = `
-        <h1>📘 Leia-me Cheat</h1>
-        <h2>🦇 by @mzzvxm</h2>
-        <button id="toggleAuto" class="auto-off">⚙️ Auto: OFF</button>
-        <button id="toggleVelocidade" class="velocidade-off">⚡ Velocidade: Humanizada</button>
-        <div id="status" style="font-size:13px; color:#ccc; text-align:center; margin-top:6px;">Aguardando</div>
-    `;
-    document.body.appendChild(ui);
+    const statusBox = document.querySelector('#status-msg');
+    const btnRun = document.querySelector('#toggle-run');
+    const btnSpeed = document.querySelector('#toggle-speed');
 
-    const btnToggle = document.getElementById("toggleAuto");
-    const btnVelocidade = document.getElementById("toggleVelocidade");
-    const statusDiv = document.getElementById("status");
+    btnRun.onclick = () => {
+        isRunning = !isRunning;
+        btnRun.textContent = `⚙️ Auto: ${isRunning ? 'ON' : 'OFF'}`;
+        btnRun.className = isRunning ? 'auto-on' : 'auto-off';
+        statusBox.textContent = isRunning ? 'Iniciado' : 'Parado';
+        if (isRunning) loopMain();
+    };
 
-    // Toggle do modo automático
-    btnToggle.onclick = function () {
-        autoMode = !autoMode;
-        this.textContent = `⚙️ Auto: ${autoMode ? 'ON' : 'OFF'}`;
-        this.classList.toggle("auto-on", autoMode);
-        this.classList.toggle("auto-off", !autoMode);
-        if (autoMode) {
-            statusDiv.textContent = "Modo automático ativado";
-            iniciarLeituraAutomatica();
-        } else {
-            statusDiv.textContent = "Modo automático desativado";
+    btnSpeed.onclick = () => {
+        fastMode = !fastMode;
+        btnSpeed.textContent = `⚡ Velocidade: ${fastMode ? 'Rápida' : 'Humanizada'}`;
+        btnSpeed.className = fastMode ? 'velocidade-on' : 'velocidade-off';
+    };
+
+    async function loopMain() {
+        while (isRunning) {
+            if (!working) {
+                if (document.querySelector('.question-quiz-text.ng-binding')) {
+                    await handleQuiz();
+                } else {
+                    tryTurnPage();
+                }
+            }
+            const pause = fastMode ? 3000 : 40000 + Math.random() * 20000;
+            statusBox.textContent = `Próxima ação em ${(pause / 1000).toFixed(1)}s`;
+            await wait(pause);
         }
-    };
-
-    // Toggle da velocidade de avanço das páginas
-    btnVelocidade.onclick = function () {
-        velocidadeRapida = !velocidadeRapida;
-        this.textContent = `⚡ Velocidade: ${velocidadeRapida ? 'Rápida' : 'Humanizada'}`;
-        this.classList.toggle("velocidade-on", velocidadeRapida);
-        this.classList.toggle("velocidade-off", !velocidadeRapida);
-        statusDiv.textContent = `Velocidade de avanço: ${velocidadeRapida ? 'Rápida (3,5s)' : 'Humanizada (40-60s)'}`;
-    };
-
-    function temPerguntaAtiva() {
-        return !!document.querySelector('.question-quiz-text.ng-binding');
+        statusBox.textContent = 'Parado';
     }
 
-    function selecionarResposta(letra) {
-        const mapa = { A: 0, B: 1, C: 2, D: 3, E: 4 };
-        const index = mapa[letra.toUpperCase()];
-        if (index === undefined) return false;
+    function tryTurnPage() {
+        const nextBtn = document.querySelector('#right-page-btn:not([disabled])');
+        if (nextBtn) {
+            nextBtn.click();
+            statusBox.textContent = 'Página avançada';
+        } else {
+            statusBox.textContent = 'Esperando página...';
+        }
+    }
 
+    async function handleQuiz() {
+        working = true;
+        statusBox.textContent = 'Quiz detectado';
+
+        const qEl = document.querySelector('.question-quiz-text.ng-binding');
+        const aEls = Array.from(document.querySelectorAll('.choice-student.choice-new-styles__answer'));
+        const question = qEl?.innerText.trim();
+        const answers = aEls.map(e => e.innerText.trim());
+
+        if (!question || answers.length < 2) {
+            statusBox.textContent = 'Erro no quiz';
+            working = false;
+            return;
+        }
+
+        statusBox.textContent = 'Consultando IA...';
+        const choice = await queryGemini(question, answers);
+
+        if (choice) {
+            markAnswer(choice, aEls);
+            statusBox.textContent = `Escolhido: ${choice}`;
+            await completeQuiz();
+        } else {
+            statusBox.textContent = 'Sem resposta da IA';
+        }
+
+        working = false;
+    }
+
+    function markAnswer(letter, elements) {
+        const index = letter.charCodeAt(0) - 65;
         const radios = document.querySelectorAll('md-radio-button.choice-radio-button');
-        const opcoesTexto = document.querySelectorAll('.choice-student.choice-new-styles__answer');
-
         if (radios[index]) radios[index].click();
-        if (opcoesTexto[index]) opcoesTexto[index].click();
-
-        return !!(radios[index] || opcoesTexto[index]);
+        if (elements[index]) elements[index].click();
     }
 
-    function clicarBotaoQuiz() {
-        return new Promise((resolve, reject) => {
-            const tentarClique = () => {
-                const container = document.querySelector('md-dialog-actions.quiz-dialog-buttons');
-                if (!container) return false;
+    async function completeQuiz() {
+        const box = document.querySelector('md-dialog-actions.quiz-dialog-buttons');
+        if (!box) return;
 
-                const btnTerminar = container.querySelector('button[ng-click="finish()"]');
-                if (btnTerminar && btnTerminar.offsetParent !== null && !btnTerminar.disabled) {
-                    console.log("✅ Botão Terminar encontrado. Clicando...");
-                    btnTerminar.click();
+        const next = box.querySelector('button[ng-click="next()"]:not([disabled])');
+        const finish = box.querySelector('button[ng-click="finish()"]:not([disabled])');
 
-                    const obsEnviar = new MutationObserver((mutations, obs) => {
-                        const btnEnviar = container.querySelector('button[ng-click="sendAnswer()"]');
-                        if (btnEnviar && btnEnviar.offsetParent !== null && !btnEnviar.disabled) {
-                            console.log("✅ Botão Enviar apareceu. Clicando...");
-                            btnEnviar.click();
-                            obs.disconnect();
-
-                            setTimeout(() => {
-                                esperarEClicarFechar();
-                                resolve(true);
-                            }, 500);
-                        }
-                    });
-
-                    obsEnviar.observe(container, { childList: true, subtree: true });
-
-                    setTimeout(() => {
-                        obsEnviar.disconnect();
-                        reject("❌ Botão Enviar não apareceu a tempo.");
-                    }, 5000);
-
-                    return true;
-                }
-
-                const btnProximo = container.querySelector('button[ng-click="next()"]');
-                if (btnProximo && btnProximo.offsetParent !== null && !btnProximo.disabled) {
-                    console.log("✅ Botão Próximo encontrado. Clicando...");
-                    btnProximo.click();
-                    resolve(true);
-                    return true;
-                }
-
-                return false;
-            };
-
-            if (tentarClique()) return;
-
-            const obsInit = new MutationObserver((mutations, obs) => {
-                const container = document.querySelector('md-dialog-actions.quiz-dialog-buttons');
-                if (container) {
-                    obs.disconnect();
-                    clicarBotaoQuiz().then(resolve).catch(reject);
-                }
-            });
-            obsInit.observe(document.body, { childList: true, subtree: true });
-
-            setTimeout(() => {
-                obsInit.disconnect();
-                reject("❌ Container de botões não apareceu.");
-            }, 5000);
-        });
-    }
-
-    async function avancarPergunta() {
-        try {
-            const clicou = await clicarBotaoQuiz();
-            return clicou;
-        } catch (e) {
-            console.warn("Erro ao tentar clicar no botão Terminar ou Próximo:", e);
-            return false;
+        if (next) {
+            next.click();
+        } else if (finish) {
+            finish.click();
+            await wait(500);
+            const send = Array.from(box.querySelectorAll('button')).find(btn => /responder|answer/i.test(btn.innerText.trim()) && !btn.disabled);
+            if (send) send.click();
+            const close = document.querySelector('md-icon[aria-label="close dialog"]');
+            if (close) close.click();
         }
     }
 
-    async function avancarPaginaLivro() {
-        const esperarBotao = () =>
-            new Promise(resolve => {
-                const tentar = () => {
-                    const btn = document.querySelector('button#right-page-btn');
-                    if (btn && !btn.disabled) {
-                        btn.click();
-                        statusDiv.textContent = "Página avançada";
-                        resolve(true);
-                    } else {
-                        setTimeout(tentar, 1000);
-                    }
-                };
-                tentar();
-            });
-
-        const btn = document.querySelector('button#right-page-btn');
-        if (btn && !btn.disabled) {
-            btn.click();
-            statusDiv.textContent = "Avançou página";
-            return true;
-        } else {
-            statusDiv.textContent = "Esperando botão de próxima página...";
-            await esperarBotao();
-            return true;
-        }
-    }
-
-    async function chamarGemini(pergunta, alternativas) {
-        const prompt = `
-Responda a seguinte pergunta do tipo múltipla escolha. Retorne apenas a letra correta.
-
-Pergunta: ${pergunta}
-
-Alternativas:
-${alternativas.map((alt, i) => `${String.fromCharCode(65 + i)}) ${alt}`).join("\n")}
-        `.trim();
+    async function queryGemini(question, options) {
+        const prompt = `Pergunta: ${question}\n` + options.map((v, i) => `${String.fromCharCode(65 + i)}) ${v}`).join('\n');
 
         try {
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                }
-            );
+            const res = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
 
-            const data = await response.json();
-            const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const letra = texto.match(/[A-E]/i)?.[0]?.toUpperCase();
-
-            console.log("💬 Resposta Gemini (raw):", texto);
-            console.log("✅ Letra extraída:", letra);
-
-            return letra || null;
-
-        } catch (error) {
-            console.error("Erro na chamada Gemini:", error);
-            statusDiv.textContent = "Erro na API Gemini";
+            const data = await res.json();
+            const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const found = result.match(/[A-E]/i);
+            return found ? found[0].toUpperCase() : null;
+        } catch (err) {
+            console.error('Erro Gemini:', err);
             return null;
         }
     }
-
-    async function processarPergunta() {
-        if (processando) return;
-        processando = true;
-
-        try {
-            const perguntaEl = document.querySelector('.question-quiz-text.ng-binding');
-            if (!perguntaEl) {
-                statusDiv.textContent = "Nenhuma pergunta ativa";
-                processando = false;
-                return;
-            }
-
-            const pergunta = perguntaEl.innerText.trim();
-            const opcoes = [...document.querySelectorAll('.choice-student.choice-new-styles__answer')]
-                .map(el => el.innerText.trim())
-                .filter(text => text.length > 0);
-
-            if (!pergunta || opcoes.length === 0) {
-                statusDiv.textContent = "Pergunta ou opções vazias";
-                processando = false;
-                return;
-            }
-
-            statusDiv.textContent = "Pergunta detectada. Chamando Gemini...";
-            console.log("📘 Pergunta:", pergunta);
-            console.log("🔢 Opções:", opcoes);
-
-            const letra = await chamarGemini(pergunta, opcoes);
-
-            if (letra) {
-                statusDiv.textContent = `Resposta Gemini: ${letra}. Selecionando...`;
-                console.log("✅ Resposta Gemini:", letra);
-
-                if (selecionarResposta(letra)) {
-                    statusDiv.textContent = "Resposta marcada. Avançando...";
-                    console.log("👍 Resposta marcada");
-                    await new Promise(r => setTimeout(r, 1500));
-                    await avancarPergunta();
-                    await new Promise(r => setTimeout(r, 3000));
-                } else {
-                    statusDiv.textContent = "Não foi possível marcar a resposta.";
-                }
-            } else {
-                statusDiv.textContent = "Gemini não respondeu a tempo.";
-            }
-        } catch (err) {
-            console.error("Erro ao processar pergunta:", err);
-            statusDiv.textContent = "Erro no processamento";
-        }
-
-        processando = false;
-    }
-
-    // Função principal do modo automático
-    async function iniciarLeituraAutomatica() {
-        while (autoMode) {
-            try {
-                if (temPerguntaAtiva()) {
-                    await processarPergunta();
-                } else {
-                    statusDiv.textContent = "Nenhuma pergunta ativa, avançando página...";
-                    await avancarPaginaLivro();
-                }
-            } catch (e) {
-                console.warn("Erro no loop automático:", e);
-            }
-
-            // Delay entre páginas (modo rápido ou humanizado)
-            const delayMs = velocidadeRapida
-                ? 3500
-                : (40 + Math.random() * 20) * 1000; // 40-60s randomizado
-            statusDiv.textContent += ` Próxima ação em ${(delayMs / 1000).toFixed(1)}s`;
-            await new Promise(r => setTimeout(r, delayMs));
-        }
-        statusDiv.textContent = "Modo automático desativado";
-    }
-
-    // Função para clicar no botão fechar quiz se aparecer
-    function esperarEClicarFechar() {
-        const btnFechar = document.querySelector('md-icon[aria-label="close dialog"]');
-        if (btnFechar) {
-            btnFechar.click();
-            console.log("🛑 Fechou diálogo");
-        }
-    }
-
 })();
