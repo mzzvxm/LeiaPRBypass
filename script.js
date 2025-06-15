@@ -16,7 +16,7 @@
       this.sessionKey = "leia_parana_splash_shown";
       this.OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
       this.DEEPSEEK_MODEL = "deepseek/deepseek-chat:free";
-      this.OPENROUTER_KEY = "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";
+      this.OPENROUTER_KEY = "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";
       this.isRunning = false;
       this.fastMode = false;
       this.working = false;
