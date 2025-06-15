@@ -781,14 +781,17 @@
     }
 
     async completeQuiz() {
+    // Passo 1: Localizar o diálogo principal
     const dialog = document.querySelector('md-dialog[aria-label^="Teste"]');
     if (!dialog) {
         this.statusBox.textContent = "Diálogo do quiz não encontrado";
         return;
     }
 
+    // Passo 2: Tentar encontrar os botões de ação
     let actionsBox = dialog.querySelector("md-dialog-actions.quiz-dialog-buttons");
     if (!actionsBox) {
+        // Fallback para diálogos com estrutura diferente
         actionsBox = dialog.querySelector("md-dialog-actions");
         if (!actionsBox) {
             this.statusBox.textContent = "Área de botões não encontrada";
@@ -796,8 +799,10 @@
         }
     }
 
+    // Passo 3: Gerenciar fluxo de ações
     let actionPerformed = false;
 
+    // Tentar ação "Próxima"
     const nextBtn = actionsBox.querySelector('button[ng-click="next()"]:not([disabled])');
     if (nextBtn) {
         nextBtn.click();
@@ -806,6 +811,7 @@
         await this.wait(800);
     }
 
+    // Tentar "Finalizar"
     if (!actionPerformed) {
         const finishBtn = actionsBox.querySelector('button[ng-click="finish()"]:not([disabled])');
         if (finishBtn) {
@@ -816,107 +822,47 @@
         }
     }
 
+    // Tentar envio de resposta
     if (!actionPerformed) {
         const sendAnswerBtn = actionsBox.querySelector('button[ng-click="sendAnswer()"]:not([disabled])');
         const tryAgainBtn = actionsBox.querySelector('button[ng-click="tryAgain()"]:not([disabled])');
 
         if (sendAnswerBtn) {
             sendAnswerBtn.click();
-            this.statusBox.textContent = "Resposta enviada (sendAnswer)";
+            this.statusBox.textContent = "Resposta enviada";
             actionPerformed = true;
-            await this.wait(2000);
+            await this.wait(1800);
         }
         else if (tryAgainBtn) {
             tryAgainBtn.click();
             this.statusBox.textContent = "Tentando novamente";
             actionPerformed = true;
-            await this.wait(2000);
+            await this.wait(1800);
         }
         else {
-            const buttons = actionsBox.querySelectorAll('button:not([disabled])');
-            for (const btn of buttons) {
+            // Fallback avançado para botões de envio
+            const potentialSendButtons = actionsBox.querySelectorAll('button:not([disabled])');
+            for (const btn of potentialSendButtons) {
                 const btnText = btn.innerText.trim().toLowerCase();
-                if (btnText.includes("enviar") || btnText.includes("responder")) {
+                if (btnText.includes("enviar") || btnText.includes("responder") || btnText.includes("send")) {
                     btn.click();
-                    this.statusBox.textContent = "Resposta enviada (texto)";
+                    this.statusBox.textContent = "Resposta enviada (fallback)";
                     actionPerformed = true;
-                    await this.wait(2000);
+                    await this.wait(1800);
                     break;
                 }
             }
 
             if (!actionPerformed) {
-                const primaryBtn = actionsBox.querySelector('.md-primary:not([disabled])');
-                if (primaryBtn) {
-                    primaryBtn.click();
-                    this.statusBox.textContent = "Resposta enviada (estilo)";
-                    actionPerformed = true;
-                    await this.wait(2000);
-                }
-            }
-
-            if (!actionPerformed) {
-                this.statusBox.textContent = "Nenhum botão de envio encontrado";
+                this.statusBox.textContent = "Nenhum botão de ação encontrado";
             }
         }
     }
 
+    // Passo 4: Fechar o diálogo com múltiplas estratégias
     let closeSuccess = false;
 
-    for (let attempt = 1; attempt <= 5; attempt++) {
-        const currentDialog = document.querySelector('md-dialog[aria-label^="Teste"]');
-        if (!currentDialog) {
-            closeSuccess = true;
-            break;
-        }
-
-        const closeButton = currentDialog.querySelector(
-            'button[aria-label=" Fechar"], ' +
-            'button[ng-click="close()"], ' +
-            'button[aria-label*="Fechar"]'
-        );
-
-        if (closeButton) {
-            closeButton.click();
-            this.statusBox.textContent = `Fechado (tentativa ${attempt})`;
-            closeSuccess = true;
-            await this.wait(800);
-            break;
-        }
-        await this.wait(500);
-    }
-
-    if (!closeSuccess && document.querySelector('md-dialog[aria-label^="Teste"]')) {
-        const escEvent = new KeyboardEvent('keydown', {
-            key: 'Escape',
-            code: 'Escape',
-            keyCode: 27,
-            bubbles: true
-        });
-        document.dispatchEvent(escEvent);
-        this.statusBox.textContent = "Fechado via ESC";
-        await this.wait(1000);
-
-        if (document.querySelector('md-dialog[aria-label^="Teste"]')) {
-            const dialogs = document.querySelectorAll('md-dialog');
-            dialogs.forEach(dialog => {
-                dialog.style.display = 'none';
-                dialog.setAttribute('aria-hidden', 'true');
-            });
-            this.statusBox.textContent = "Diálogo oculto forçadamente";
-        }
-    }
-
-    await this.wait(1000);
-    if (document.querySelector('md-dialog[aria-label^="Teste"]')) {
-        this.statusBox.textContent += " - Aviso: Diálogo ainda pode estar visível";
-    } else {
-        this.statusBox.textContent += " - Sucesso";
-    }
-}
-
-    let closeSuccess = false;
-
+    // Estratégia 1: Botão de fechar padrão
     for (let attempt = 0; attempt < 4; attempt++) {
         const closeButton = dialog.querySelector('button[aria-label*="Fechar"], button[ng-click="close()"]');
         if (closeButton) {
@@ -928,6 +874,7 @@
         await this.wait(500 + attempt * 400);
     }
 
+    // Estratégia 2: Fechar via backdrop
     if (!closeSuccess) {
         const backdrop = document.querySelector('md-backdrop');
         if (backdrop) {
@@ -938,6 +885,7 @@
         }
     }
 
+    // Estratégia 3: Fechar via tecla Escape (simulação)
     if (!closeSuccess) {
         const escapeEvent = new KeyboardEvent('keydown', {
             key: 'Escape',
@@ -951,6 +899,7 @@
         await this.wait(1000);
     }
 
+    // Verificação final
     if (dialog.isConnected) {
         this.statusBox.textContent = "Falha crítica: quiz ainda aberto";
     }
