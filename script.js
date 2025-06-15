@@ -2,24 +2,25 @@
 // @name         LeiaParaná Auto Reader
 // @namespace    http://tampermonkey.net/
 // @version      3.1.0
-// @description  Bot de leitura e quiz automatizado no LeiaParaná
+// @description  Bot de leitura e quiz automatizado no LeiaParaná, com splash screen moderna e UI clássica
 // @author       MZ
 // @match        *://*odilo*/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
 
-;(() => {
+; (() => {
   class LeiaParanaEnhanced {
     constructor() {
-      this.splashScreen = null
-      this.sessionKey = "leia_parana_splash_shown"
-      this.GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-      this.GEMINI_KEY = "AIzaSyDzHvHcoBgfeNJf0iwM2AfjQM3mQ9sW-W8"
-      this.isRunning = false
-      this.fastMode = false
-      this.working = false
-      this.init()
+      this.splashScreen = null;
+      this.sessionKey = "leia_parana_splash_shown";
+      this.OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+      this.DEEPSEEK_MODEL = "deepseek/deepseek-chat:free";
+      this.OPENROUTER_KEY = "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";
+      this.isRunning = false;
+      this.fastMode = false;
+      this.working = false;
+      this.init();
     }
 
     async init() {
@@ -532,8 +533,8 @@
         }
 
         ${Array.from(
-          { length: 20 },
-          (_, i) => `
+        { length: 20 },
+        (_, i) => `
           .particle-${i} {
             left: ${Math.random() * 100}%;
             width: ${3 + Math.random() * 5}px;
@@ -542,7 +543,7 @@
             animation-duration: ${10 + Math.random() * 15}s;
           }
         `,
-        ).join("")}
+      ).join("")}
       `
       document.head.appendChild(style)
     }
@@ -553,7 +554,7 @@
 
       const steps = [
         { progress: 20, text: "Conectando à plataforma..." },
-        { progress: 40, text: "Carregando IA Gemini..." },
+        { progress: 40, text: "Carregando IA DeepSeek..." },
         { progress: 60, text: "Configurando automação..." },
         { progress: 80, text: "Preparando interface..." },
         { progress: 100, text: "Leitor pronto!" },
@@ -780,46 +781,215 @@
     }
 
     async completeQuiz() {
-      const box = document.querySelector("md-dialog-actions.quiz-dialog-buttons")
-      if (!box) return
-
-      const next = box.querySelector('button[ng-click="next()"]:not([disabled])')
-      const finish = box.querySelector('button[ng-click="finish()"]:not([disabled])')
-
-      if (next) {
-        next.click()
-      } else if (finish) {
-        finish.click()
-        await this.wait(500)
-        const send = Array.from(box.querySelectorAll("button")).find(
-          (btn) => /responder|answer/i.test(btn.innerText.trim()) && !btn.disabled,
-        )
-        if (send) send.click()
-        const close = document.querySelector('md-icon[aria-label="close dialog"]')
-        if (close) close.click()
-      }
+    const dialog = document.querySelector('md-dialog[aria-label^="Teste"]');
+    if (!dialog) {
+        this.statusBox.textContent = "Diálogo do quiz não encontrado";
+        return;
     }
 
+    let actionsBox = dialog.querySelector("md-dialog-actions.quiz-dialog-buttons");
+    if (!actionsBox) {
+        actionsBox = dialog.querySelector("md-dialog-actions");
+        if (!actionsBox) {
+            this.statusBox.textContent = "Área de botões não encontrada";
+            return;
+        }
+    }
+
+    let actionPerformed = false;
+
+    const nextBtn = actionsBox.querySelector('button[ng-click="next()"]:not([disabled])');
+    if (nextBtn) {
+        nextBtn.click();
+        this.statusBox.textContent = "Próxima pergunta";
+        actionPerformed = true;
+        await this.wait(800);
+    }
+
+    if (!actionPerformed) {
+        const finishBtn = actionsBox.querySelector('button[ng-click="finish()"]:not([disabled])');
+        if (finishBtn) {
+            finishBtn.click();
+            this.statusBox.textContent = "Finalizando quiz";
+            actionPerformed = true;
+            await this.wait(1200);
+        }
+    }
+
+    if (!actionPerformed) {
+        const sendAnswerBtn = actionsBox.querySelector('button[ng-click="sendAnswer()"]:not([disabled])');
+        const tryAgainBtn = actionsBox.querySelector('button[ng-click="tryAgain()"]:not([disabled])');
+
+        if (sendAnswerBtn) {
+            sendAnswerBtn.click();
+            this.statusBox.textContent = "Resposta enviada (sendAnswer)";
+            actionPerformed = true;
+            await this.wait(2000);
+        }
+        else if (tryAgainBtn) {
+            tryAgainBtn.click();
+            this.statusBox.textContent = "Tentando novamente";
+            actionPerformed = true;
+            await this.wait(2000);
+        }
+        else {
+            const buttons = actionsBox.querySelectorAll('button:not([disabled])');
+            for (const btn of buttons) {
+                const btnText = btn.innerText.trim().toLowerCase();
+                if (btnText.includes("enviar") || btnText.includes("responder")) {
+                    btn.click();
+                    this.statusBox.textContent = "Resposta enviada (texto)";
+                    actionPerformed = true;
+                    await this.wait(2000);
+                    break;
+                }
+            }
+
+            if (!actionPerformed) {
+                const primaryBtn = actionsBox.querySelector('.md-primary:not([disabled])');
+                if (primaryBtn) {
+                    primaryBtn.click();
+                    this.statusBox.textContent = "Resposta enviada (estilo)";
+                    actionPerformed = true;
+                    await this.wait(2000);
+                }
+            }
+
+            if (!actionPerformed) {
+                this.statusBox.textContent = "Nenhum botão de envio encontrado";
+            }
+        }
+    }
+
+    let closeSuccess = false;
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+        const currentDialog = document.querySelector('md-dialog[aria-label^="Teste"]');
+        if (!currentDialog) {
+            closeSuccess = true;
+            break;
+        }
+
+        const closeButton = currentDialog.querySelector(
+            'button[aria-label=" Fechar"], ' +
+            'button[ng-click="close()"], ' +
+            'button[aria-label*="Fechar"]'
+        );
+
+        if (closeButton) {
+            closeButton.click();
+            this.statusBox.textContent = `Fechado (tentativa ${attempt})`;
+            closeSuccess = true;
+            await this.wait(800);
+            break;
+        }
+        await this.wait(500);
+    }
+
+    if (!closeSuccess && document.querySelector('md-dialog[aria-label^="Teste"]')) {
+        const escEvent = new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            bubbles: true
+        });
+        document.dispatchEvent(escEvent);
+        this.statusBox.textContent = "Fechado via ESC";
+        await this.wait(1000);
+
+        if (document.querySelector('md-dialog[aria-label^="Teste"]')) {
+            const dialogs = document.querySelectorAll('md-dialog');
+            dialogs.forEach(dialog => {
+                dialog.style.display = 'none';
+                dialog.setAttribute('aria-hidden', 'true');
+            });
+            this.statusBox.textContent = "Diálogo oculto forçadamente";
+        }
+    }
+
+    await this.wait(1000);
+    if (document.querySelector('md-dialog[aria-label^="Teste"]')) {
+        this.statusBox.textContent += " - Aviso: Diálogo ainda pode estar visível";
+    } else {
+        this.statusBox.textContent += " - Sucesso";
+    }
+}
+
+    let closeSuccess = false;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const closeButton = dialog.querySelector('button[aria-label*="Fechar"], button[ng-click="close()"]');
+        if (closeButton) {
+            closeButton.click();
+            this.statusBox.textContent = "Quiz fechado";
+            closeSuccess = true;
+            break;
+        }
+        await this.wait(500 + attempt * 400);
+    }
+
+    if (!closeSuccess) {
+        const backdrop = document.querySelector('md-backdrop');
+        if (backdrop) {
+            backdrop.click();
+            this.statusBox.textContent = "Fechado via backdrop";
+            closeSuccess = true;
+            await this.wait(800);
+        }
+    }
+
+    if (!closeSuccess) {
+        const escapeEvent = new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true
+        });
+        dialog.dispatchEvent(escapeEvent);
+        this.statusBox.textContent = "Fechado via Escape";
+        await this.wait(1000);
+    }
+
+    if (dialog.isConnected) {
+        this.statusBox.textContent = "Falha crítica: quiz ainda aberto";
+    }
+}
+
     async queryGemini(question, options) {
+      const bookTitle = document.querySelector("#bookTitle .ng-binding")?.innerText.trim() || "(Título desconhecido)";
+      const chapterTitle = document.querySelector(".chapterTitle .ng-binding")?.innerText.trim() || "(Capítulo desconhecido)";
+
       const prompt =
-        `Pergunta: ${question}\n` + options.map((v, i) => `${String.fromCharCode(65 + i)}) ${v}`).join("\n")
+        `Você está ajudando a responder uma questão de múltipla escolha com base em um livro digital.` +
+        `\n\nLivro: ${bookTitle}` +
+        `\nCapítulo: ${chapterTitle}` +
+        `\n\nPergunta: ${question}\n` +
+        options.map((v, i) => `${String.fromCharCode(65 + i)}) ${v}`).join("\n") +
+        "\n\nResponda apenas com a letra da alternativa correta (A, B, C, D ou E).";
 
       try {
-        const res = await fetch(`${this.GEMINI_ENDPOINT}?key=${this.GEMINI_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        })
+        console.log("📘 Prompt enviado para DeepSeek:\n", prompt);
 
-        const data = await res.json()
-        const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || ""
-        const found = result.match(/[A-E]/i)
-        return found ? found[0].toUpperCase() : null
+        const res = await fetch(this.OPENROUTER_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.OPENROUTER_KEY}`,
+          },
+          body: JSON.stringify({
+            model: this.DEEPSEEK_MODEL,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+
+        const data = await res.json();
+        const result = data?.choices?.[0]?.message?.content || "";
+        const found = result.match(/[A-E]/i);
+        return found ? found[0].toUpperCase() : null;
       } catch (err) {
-        console.error("Erro Gemini:", err)
-        return null
+        console.error("Erro DeepSeek:", err);
+        return null;
       }
     }
 
