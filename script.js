@@ -16,7 +16,7 @@
       this.sessionKey = "leia_parana_splash_shown";
       this.OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
       this.DEEPSEEK_MODEL = "deepseek/deepseek-chat:free";
-      this.OPENROUTER_KEY = "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";
+      this.OPENROUTER_KEY = "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";
       this.isRunning = false;
       this.fastMode = false;
       this.working = false;
@@ -744,34 +744,66 @@
       }
     }
 
-    async handleQuiz() {
-      this.working = true
-      this.statusBox.textContent = "Quiz detectado"
-
-      const qEl = document.querySelector(".question-quiz-text.ng-binding")
-      const aEls = Array.from(document.querySelectorAll(".choice-student.choice-new-styles__answer"))
-      const question = qEl?.innerText.trim()
-      const answers = aEls.map((e) => e.innerText.trim())
-
-      if (!question || answers.length < 2) {
-        this.statusBox.textContent = "Erro no quiz"
-        this.working = false
-        return
-      }
-
-      this.statusBox.textContent = "Consultando IA..."
-      const choice = await this.queryGemini(question, answers)
-
-      if (choice) {
-        this.markAnswer(choice, aEls)
-        this.statusBox.textContent = `Escolhido: ${choice}`
-        await this.completeQuiz()
-      } else {
-        this.statusBox.textContent = "Sem resposta da IA"
-      }
-
-      this.working = false
+    // Método auxiliar (novo)
+isQuizReady() {
+    // Verificação do container do quiz
+    const dialogContainer = document.querySelector('.md-dialog-container.ng-scope');
+    if (!dialogContainer || getComputedStyle(dialogContainer).opacity === '0') {
+        return false;
     }
+
+    // Verificação do conteúdo do quiz
+    const hasQuestion = !!document.querySelector('.question-quiz-text.ng-binding');
+    const hasAnswers = document.querySelectorAll('.choice-student.choice-new-styles__answer').length >= 2;
+
+    return hasQuestion && hasAnswers;
+}
+
+// Método principal (modificado)
+async handleQuiz() {
+    this.working = true;
+
+    // Verificação inicial robusta
+    if (!this.isQuizReady()) {
+        this.statusBox.textContent = "Quiz não está completamente carregado";
+        this.working = false;
+        await this.wait(1000);
+        return;
+    }
+
+    // Extração de elementos (existente)
+    const qEl = document.querySelector(".question-quiz-text.ng-binding");
+    const aEls = Array.from(document.querySelectorAll(".choice-student.choice-new-styles__answer"));
+    const question = qEl?.innerText.trim();
+    const answers = aEls.map((e) => e.innerText.trim());
+
+    // Validação reforçada
+    if (!question || answers.length < 2) {
+        this.statusBox.textContent = "Estrutura do quiz inválida";
+        this.working = false;
+        await this.wait(1000);
+        return;
+    }
+
+    // Consulta à IA (existente)
+    this.statusBox.textContent = "Consultando IA...";
+    const choice = await this.queryGemini(question, answers);
+
+    if (choice) {
+        // Marcação com verificação
+        const marked = this.markAnswer(choice, aEls);
+        if (marked) {
+            this.statusBox.textContent = `Escolhido: ${choice}`;
+            await this.completeQuiz();
+        } else {
+            this.statusBox.textContent = "Falha ao marcar resposta";
+        }
+    } else {
+        this.statusBox.textContent = "Sem resposta da IA";
+    }
+
+    this.working = false;
+}
 
     markAnswer(letter, elements) {
       const index = letter.charCodeAt(0) - 65
@@ -781,128 +813,146 @@
     }
 
     async completeQuiz() {
-    // Passo 1: Localizar o diálogo principal
-    const dialog = document.querySelector('md-dialog[aria-label^="Teste"]');
+    // Passo 1: Localizar o diálogo com múltiplos fallbacks
+    const findDialog = () => {
+        return document.querySelector('md-dialog[aria-label^="Teste"]') ||
+               document.querySelector('md-dialog.ng-scope') ||
+               document.querySelector('md-dialog');
+    };
+
+    let dialog;
+    let attempts = 0;
+    while (!dialog && attempts < 5) {
+        dialog = findDialog();
+        if (!dialog) await this.wait(300 + attempts * 200);
+        attempts++;
+    }
+
     if (!dialog) {
         this.statusBox.textContent = "Diálogo do quiz não encontrado";
         return;
     }
 
-    // Passo 2: Tentar encontrar os botões de ação
-    let actionsBox = dialog.querySelector("md-dialog-actions.quiz-dialog-buttons");
-    if (!actionsBox) {
-        // Fallback para diálogos com estrutura diferente
-        actionsBox = dialog.querySelector("md-dialog-actions");
-        if (!actionsBox) {
-            this.statusBox.textContent = "Área de botões não encontrada";
-            return;
-        }
-    }
+    // Passo 2: Espera estratégica baseada no estado do quiz
+    const scoreElement = dialog.querySelector('.current-score.ng-binding');
+    const attemptsElement = dialog.querySelector('strong.ng-binding');
 
-    // Passo 3: Gerenciar fluxo de ações
-    let actionPerformed = false;
-
-    // Tentar ação "Próxima"
-    const nextBtn = actionsBox.querySelector('button[ng-click="next()"]:not([disabled])');
-    if (nextBtn) {
-        nextBtn.click();
-        this.statusBox.textContent = "Próxima pergunta";
-        actionPerformed = true;
-        await this.wait(800);
-    }
-
-    // Tentar "Finalizar"
-    if (!actionPerformed) {
-        const finishBtn = actionsBox.querySelector('button[ng-click="finish()"]:not([disabled])');
-        if (finishBtn) {
-            finishBtn.click();
-            this.statusBox.textContent = "Finalizando quiz";
-            actionPerformed = true;
-            await this.wait(1200);
-        }
-    }
-
-    // Tentar envio de resposta
-    if (!actionPerformed) {
-        const sendAnswerBtn = actionsBox.querySelector('button[ng-click="sendAnswer()"]:not([disabled])');
-        const tryAgainBtn = actionsBox.querySelector('button[ng-click="tryAgain()"]:not([disabled])');
-
-        if (sendAnswerBtn) {
-            sendAnswerBtn.click();
-            this.statusBox.textContent = "Resposta enviada";
-            actionPerformed = true;
-            await this.wait(1800);
-        }
-        else if (tryAgainBtn) {
-            tryAgainBtn.click();
-            this.statusBox.textContent = "Tentando novamente";
-            actionPerformed = true;
-            await this.wait(1800);
-        }
-        else {
-            // Fallback avançado para botões de envio
-            const potentialSendButtons = actionsBox.querySelectorAll('button:not([disabled])');
-            for (const btn of potentialSendButtons) {
-                const btnText = btn.innerText.trim().toLowerCase();
-                if (btnText.includes("enviar") || btnText.includes("responder") || btnText.includes("send")) {
-                    btn.click();
-                    this.statusBox.textContent = "Resposta enviada (fallback)";
-                    actionPerformed = true;
-                    await this.wait(1800);
-                    break;
-                }
-            }
-
-            if (!actionPerformed) {
-                this.statusBox.textContent = "Nenhum botão de ação encontrado";
-            }
-        }
-    }
-
-    // Passo 4: Fechar o diálogo com múltiplas estratégias
-    let closeSuccess = false;
-
-    // Estratégia 1: Botão de fechar padrão
-    for (let attempt = 0; attempt < 4; attempt++) {
-        const closeButton = dialog.querySelector('button[aria-label*="Fechar"], button[ng-click="close()"]');
-        if (closeButton) {
-            closeButton.click();
-            this.statusBox.textContent = "Quiz fechado";
-            closeSuccess = true;
-            break;
-        }
-        await this.wait(500 + attempt * 400);
-    }
-
-    // Estratégia 2: Fechar via backdrop
-    if (!closeSuccess) {
-        const backdrop = document.querySelector('md-backdrop');
-        if (backdrop) {
-            backdrop.click();
-            this.statusBox.textContent = "Fechado via backdrop";
-            closeSuccess = true;
-            await this.wait(800);
-        }
-    }
-
-    // Estratégia 3: Fechar via tecla Escape (simulação)
-    if (!closeSuccess) {
-        const escapeEvent = new KeyboardEvent('keydown', {
-            key: 'Escape',
-            code: 'Escape',
-            keyCode: 27,
-            which: 27,
-            bubbles: true
-        });
-        dialog.dispatchEvent(escapeEvent);
-        this.statusBox.textContent = "Fechado via Escape";
+    // Espera adicional se houver pontuação ou tentativas sendo exibidas
+    if (scoreElement || attemptsElement) {
         await this.wait(1000);
     }
 
-    // Verificação final
-    if (dialog.isConnected) {
-        this.statusBox.textContent = "Falha crítica: quiz ainda aberto";
+    // Passo 3: Localizar os botões de ação
+    const actionsBox = dialog.querySelector('md-dialog-actions.quiz-dialog-buttons') ||
+                     dialog.querySelector('md-dialog-actions');
+
+    if (!actionsBox) {
+        this.statusBox.textContent = "Área de botões não encontrada";
+        return;
     }
+
+    // Passo 4: Função aprimorada para clicar em botões AngularJS
+    const clickAngularButton = async (button) => {
+        if (!button || button.disabled) return false;
+
+        // 1. Dispara eventos de mouse completos
+        const rect = button.getBoundingClientRect();
+        const eventOptions = {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width/2,
+            clientY: rect.top + rect.height/2,
+            view: window
+        };
+
+        const events = [
+            new MouseEvent('mouseover', eventOptions),
+            new MouseEvent('mousedown', eventOptions),
+            new MouseEvent('mouseup', eventOptions),
+            new MouseEvent('click', eventOptions)
+        ];
+
+        events.forEach(event => button.dispatchEvent(event));
+
+        // 2. Dispara eventos do AngularJS se disponível
+        if (window.angular) {
+            try {
+                const angularElement = angular.element(button);
+                const scope = angularElement.scope();
+
+                // Executa a função ng-click programaticamente
+                if (button.hasAttribute('ng-click')) {
+                    const clickExpr = button.getAttribute('ng-click');
+                    scope.$eval(clickExpr);
+                }
+
+                scope.$apply();
+            } catch (e) {
+                console.log('Angular interaction error:', e);
+            }
+        }
+
+        await this.wait(800);
+        return true;
+    };
+
+    // Passo 5: Priorização de ações
+    const actionsToTry = [
+        {
+            selector: 'button[ng-click="sendAnswer()"]',
+            action: async (btn) => {
+                const result = await clickAngularButton(btn);
+                if (result) {
+                    this.statusBox.textContent = "Resposta enviada com sucesso";
+                    return true;
+                }
+                return false;
+            }
+        },
+        {
+            selector: 'button[ng-click="tryAgain()"]',
+            action: async (btn) => {
+                const result = await clickAngularButton(btn);
+                if (result) {
+                    this.statusBox.textContent = "Tentando novamente";
+                    return true;
+                }
+                return false;
+            }
+        },
+        {
+            selector: 'button.md-primary:not([disabled])',
+            action: async (btn) => {
+                btn.click();
+                this.statusBox.textContent = "Botão primário clicado";
+                await this.wait(1500);
+                return true;
+            }
+        }
+    ];
+
+    // Tentar cada ação em ordem
+    for (const action of actionsToTry) {
+        const button = actionsBox.querySelector(action.selector);
+        if (button && !button.disabled) {
+            const success = await action.action(button);
+            if (success) {
+                await this.wait(2000); // Espera após ação bem-sucedida
+                return;
+            }
+        }
+    }
+
+    // Fallback final
+    const anyEnabledButton = actionsBox.querySelector('button:not([disabled])');
+    if (anyEnabledButton) {
+        anyEnabledButton.click();
+        this.statusBox.textContent = "Ação fallback executada";
+        await this.wait(2000);
+        return;
+    }
+
+    this.statusBox.textContent = "Nenhum botão disponível para ação";
 }
 
     async queryGemini(question, options) {
