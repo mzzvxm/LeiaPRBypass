@@ -36,7 +36,7 @@
 2. No campo de URL do favorito, cole o seguinte código:
 
    ```javascript
-   javascript:(function(){fetch('https://raw.githubusercontent.com/mzzvxm/LeiaPRBypass/main/script.js').then(r=>r.text()).then(eval);})();
+   javascript:(function(){fetch('https://cdn.jsdelivr.net/gh/mzzvxm/LeiaPRBypass@main/script.js').then(r=>r.text()).then(eval);})();
    ```
 
 3. Acesse o site do Leia Paraná
